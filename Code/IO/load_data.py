@@ -69,7 +69,8 @@ def load_raw_imgs():
             # generate positive examples
             valid_pixels = [[i * IM_HEIGHT + j for j in range(IM_WIDTH)] for i in range(IM_HEIGHT)]
             valid_pixels = np.array(valid_pixels)
-            valid_pixels[-FACE_HEIGHT:, -FACE_WIDTH:] = -1 # so that i don't choose negative examples too close to the edges
+            valid_pixels[-FACE_HEIGHT:, :] = -1 # so that i don't choose negative examples too close to the edges
+            valid_pixels[:, -FACE_WIDTH:] = -1
             while line_index < len(gt_lines) and match_beginning_of_line(gt_lines[line_index], index):
                 x1, y1, x2, y2, im_class = get_data_from_line(gt_lines[line_index])
                 fx, fy = IM_WIDTH/oldw, IM_HEIGHT/oldh # account for resizing
