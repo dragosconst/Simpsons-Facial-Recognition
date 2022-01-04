@@ -33,14 +33,6 @@ def extract_features_facial_sift(positive_examples, negative_examples):
         if dp is None:
             pos_dp[index] = np.zeros((1, sift.descriptorSize()), np.float32)
     pos_cb, variance = kmeans(pos_dps, K, 1)
-    feature_histograms_pos = np.zeros((len(positive_examples), K), np.float32)
-    for index, example in enumerate(positive_examples):
-        try:
-            vwords, distances = vq(pos_dp[index], pos_cb)
-        except ValueError:
-            print("aaaa")
-        for vw in vwords:
-            feature_histograms_pos[index, vw] += 1
 
     # do the same thing for negative examples
     neg_kps = []
@@ -58,14 +50,34 @@ def extract_features_facial_sift(positive_examples, negative_examples):
         if dp is None:
             neg_dp[index] = np.zeros((1, sift.descriptorSize()), np.float32)
     neg_cb, variance = kmeans(neg_dps, K, 1)
+
+    complete_cb = np.concatenate((pos_cb, neg_cb))
+
     feature_histograms_neg = np.zeros((len(negative_examples), K), np.float32)
+    feature_histograms_pos = np.zeros((len(positive_examples), K), np.float32)
+    for index, example in enumerate(positive_examples):
+        try:
+            vwords, distances = vq(pos_dp[index], complete_cb)
+        except ValueError:
+            print("aaaa")
+        for vw in vwords:
+            feature_histograms_pos[index, vw] += 1
+
     for index, example in enumerate(negative_examples):
-        vwords, distances = vq(neg_dp[index], neg_cb)
+        vwords, distances = vq(neg_dp[index], complete_cb)
         for vw in vwords:
             feature_histograms_neg[index, vw] += 1
 
-    save_sift_h(feature_histograms_pos, feature_histograms_neg)
-    return feature_histograms_pos, feature_histograms_neg
+    save_sift_h(feature_histograms_pos, feature_histograms_neg, complete_cb)
+    return feature_histograms_pos, feature_histograms_neg, complete_cb
+
+def extract_sift_features_image(image):
+    sift = cv.SIFT_create(edgeThreshold=15, contrastThreshold=0.03)
+    kp = sift.detect(image, None)
+    kps, dp = sift.compute(image, kp)
+    if dp is None:
+        return np.zeros((1, sift.descriptorSize(), np.float32))
+    return dp
 
 def train_svm_facial(train_data, train_labels):
     svm = LinearSVC(C = 10 ** -2)

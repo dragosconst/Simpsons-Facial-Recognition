@@ -1,5 +1,16 @@
 import numpy as np
+import cv2 as cv
+from Code.Model.cnn_bow import extract_sift_features_image, K
+from scipy.cluster.vq import vq
+from Code.Logical.classes import FaceClasses
+
 IOU_THRESH = 0.3
+MAX_IMG_WIDTH = 1200
+MAX_IMG_HEIGHT = 1200
+FAC_RESIZE = 4
+SCALE_FACTOR = 0.2
+SW_W = 16
+SW_H = 16
 
 def intersection_over_union(bbox_a, bbox_b):
     x_a = max(bbox_a[0], bbox_b[0])
@@ -54,6 +65,46 @@ def non_maximal_suppression(image_detections, image_scores, image_size):
 
     return sorted_image_detections[is_maximal], sorted_scores[is_maximal]
 
-def sliding_window_valid(valid_data, valid_labels):
+"""
+I will resize the image several times and apply the sliding window over each image. I will use a semi-smart
+resizing, meaning that I have a max bound for resizing, and no min bound -  I just keep making it smaller
+untill it gets smaller than the sliding windows times a factor.
+The final coordinates returned will obviously be returned for the initial image.
+"""
+def sliding_window_valid(valid_data, code_book, svm):
+    all_detections = []
     for image in valid_data:
-        pass
+        h, w = image.shape
+        scale = min(MAX_IMG_HEIGHT / h, MAX_IMG_WIDTH / w)
+        detections = []
+        # go from highest possible scaling to smallest scaling
+        while h * scale >= FAC_RESIZE * SW_H and w * scale >= FAC_RESIZE * SW_H:
+            img = cv.resize(image, (0, 0), fx=scale, fy=scale)
+
+            # apply sliding window on img
+            for y in range(img.shape[0] - SW_H + 1):
+                for x in range(img.shape[1] - SW_W + 1):
+                    patch = img[y:y+SW_H, x:x+SW_W]
+
+                    # extract histogram of patch
+                    histogram = np.zeros(K)
+                    descriptors = extract_sift_features_image(patch)
+                    vwords, distances = vq(descriptors, code_book)
+                    for vw in vwords:
+                        histogram[vw] += 1
+
+                    predicted_label = svm.predict(histogram)[0]
+                    if predicted_label == FaceClasses.Face: # scale detection back to original scale
+                        detections.append((x // scale, y // scale, x // scale + SW_W // scale, y // scale + SW_H // scale))
+
+
+
+            scale = scale - scale * SCALE_FACTOR
+
+        # now we have to filter out non-maximal detections
+        print(f"Finished an image")
+        scores = np.ones(len(detections))
+        detections, _ = non_maximal_suppression(detections, scores, image.shape)
+        all_detections.append([detections])
+
+    return all_detections
