@@ -133,24 +133,24 @@ def get_examples():
     return faces, faces_labels, negatives
 
 def match_beginning_of_line_valid(line, filename):
-    for index, char in enumerate(filename):
-        if line[index] != filename[index]:
+    for index, char in enumerate(filename[27:]):
+        if line[index] != filename[27 + index]:
             return False
     return True
 
 def get_data_from_line_valid(line, filename):
     # it's assumed line begins with filename
-    relevant_line = line[len(filename):].split(" ")
+    relevant_line = line[len(filename[27:]) + 1:].split(" ")
     im_class = relevant_line[4]
-    if im_class == "bart":
+    if im_class[:4] == "bart":
         im_class = ImageClasses.Bart.value
-    elif im_class == "homer":
+    elif im_class[:5] == "homer":
         im_class = ImageClasses.Homer.value
-    elif im_class == "marge":
+    elif im_class[:5] == "marge":
         im_class = ImageClasses.Marge.value
-    elif im_class == "lisa":
+    elif im_class[:4] == "lisa":
         im_class = ImageClasses.Lisa.value
-    elif im_class == "unknown":
+    elif im_class[:7] == "unknown":
         im_class = ImageClasses.Unknown.value
     return int(relevant_line[0]), int(relevant_line[1]), int(relevant_line[2]), int(relevant_line[3]), im_class
 
@@ -175,12 +175,12 @@ def load_raw_valid():
             x1, y1, x2, y2 = int(x1 * fx), int(y1 * fy), int(x2 * fx), int(y2 * fy)
             valid_labels.append((len(valid) - 1, x1, y1, x2, y2, im_class))
             line_index += 1
-    valid = np.asarray(valid)
-    valid_labels = np.asarray(valid_labels)
+    valid = np.asarray(valid, np.uint8)
+    valid_labels = np.asarray(valid_labels, np.int32)
     return valid, valid_labels
 
 def get_valid():
-    valid_npy = os.path.join(DATA_PATH, "valid.npy")
+    valid_npy = os.path.join(DATA_PATH, "*.npy")
     if os.path.exists(valid_npy):
         valid = np.load(os.path.join(DATA_PATH, VALID + ".npy"), allow_pickle=True)
         valid_labels = np.load(os.path.join(DATA_PATH, VALID_LAB + ".npy"), allow_pickle=True)

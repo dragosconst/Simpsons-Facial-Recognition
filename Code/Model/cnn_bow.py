@@ -32,7 +32,7 @@ def extract_features_facial_sift(positive_examples, negative_examples):
     for index, dp in enumerate(pos_dp):
         if dp is None:
             pos_dp[index] = np.zeros((1, sift.descriptorSize()), np.float32)
-    pos_cb, variance = kmeans(pos_dps, K, 1)
+    # pos_cb, variance = kmeans(pos_dps, K, 1)
 
     # do the same thing for negative examples
     neg_kps = []
@@ -49,9 +49,9 @@ def extract_features_facial_sift(positive_examples, negative_examples):
     for index, dp in enumerate(neg_dp):
         if dp is None:
             neg_dp[index] = np.zeros((1, sift.descriptorSize()), np.float32)
-    neg_cb, variance = kmeans(neg_dps, K, 1)
 
-    complete_cb = np.concatenate((pos_cb, neg_cb))
+    complete_cb, variance = kmeans(np.concatenate((pos_dps, neg_dps)), K, 1)
+
 
     feature_histograms_neg = np.zeros((len(negative_examples), K), np.float32)
     feature_histograms_pos = np.zeros((len(positive_examples), K), np.float32)
@@ -76,7 +76,7 @@ def extract_sift_features_image(image):
     kp = sift.detect(image, None)
     kps, dp = sift.compute(image, kp)
     if dp is None:
-        return np.zeros((1, sift.descriptorSize(), np.float32))
+        return np.zeros((1, sift.descriptorSize()), np.float32)
     return dp
 
 def train_svm_facial(train_data, train_labels):

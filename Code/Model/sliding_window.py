@@ -5,12 +5,14 @@ from scipy.cluster.vq import vq
 from Code.Logical.classes import FaceClasses
 
 IOU_THRESH = 0.3
-MAX_IMG_WIDTH = 1200
-MAX_IMG_HEIGHT = 1200
-FAC_RESIZE = 4
+MAX_IMG_WIDTH = 400
+MAX_IMG_HEIGHT = 400
+FAC_RESIZE = 2
 SCALE_FACTOR = 0.2
-SW_W = 16
-SW_H = 16
+STRIDE_Y = 2
+STRIDE_X = 2
+SW_W = 32
+SW_H = 32
 
 def intersection_over_union(bbox_a, bbox_b):
     x_a = max(bbox_a[0], bbox_b[0])
@@ -36,7 +38,8 @@ Params:
 This is called for one image at a time
 """
 def non_maximal_suppression(image_detections, image_scores, image_size):
-
+    if len(image_detections) == 0:
+        return [], None
     x_out_of_bounds = np.where(image_detections[:, 2] > image_size[1])[0]
     y_out_of_bounds = np.where(image_detections[:, 3] > image_size[0])[0]
     print(x_out_of_bounds, y_out_of_bounds)
@@ -65,6 +68,23 @@ def non_maximal_suppression(image_detections, image_scores, image_size):
 
     return sorted_image_detections[is_maximal], sorted_scores[is_maximal]
 
+# check it can actually detect any faces at all?? lol
+def check_detections_directly(valid_data, valid_labels, code_book, svm):
+    sift = cv.SIFT_create(edgeThreshold=15, contrastThreshold=0.03)
+    kps = []
+    for im_index, image in enumerate(valid_data):
+        kp = sift.detect(image, None)
+        kps.append(kp)
+    kps, dp = sift.compute(valid_data, kps)
+    histograms = np.zeros((len(valid_data), K), np.float32)
+    for im_index, image in enumerate(valid_data):
+        vwords, distances = vq(dp[im_index], code_book)
+        for vw in vwords:
+            histograms[im_index, vw] += 1
+
+    print(f"Score on real data is {svm.score(histograms, valid_labels)}")
+
+
 """
 I will resize the image several times and apply the sliding window over each image. I will use a semi-smart
 resizing, meaning that I have a max bound for resizing, and no min bound -  I just keep making it smaller
@@ -73,8 +93,8 @@ The final coordinates returned will obviously be returned for the initial image.
 """
 def sliding_window_valid(valid_data, code_book, svm):
     all_detections = []
-    for image in valid_data:
-        h, w = image.shape
+    for img_index, image in enumerate(valid_data):
+        h, w, _ = image.shape
         scale = min(MAX_IMG_HEIGHT / h, MAX_IMG_WIDTH / w)
         detections = []
         # go from highest possible scaling to smallest scaling
@@ -82,8 +102,9 @@ def sliding_window_valid(valid_data, code_book, svm):
             img = cv.resize(image, (0, 0), fx=scale, fy=scale)
 
             # apply sliding window on img
-            for y in range(img.shape[0] - SW_H + 1):
-                for x in range(img.shape[1] - SW_W + 1):
+            for y in range(0, img.shape[0] - SW_H + 1, STRIDE_Y):
+                # print(f"y is {y}, stop at {img.shape[0] - SW_H + 1}")
+                for x in range(0, img.shape[1] - SW_W + 1, STRIDE_X):
                     patch = img[y:y+SW_H, x:x+SW_W]
 
                     # extract histogram of patch
@@ -93,18 +114,22 @@ def sliding_window_valid(valid_data, code_book, svm):
                     for vw in vwords:
                         histogram[vw] += 1
 
-                    predicted_label = svm.predict(histogram)[0]
+                    predicted_label = svm.predict([histogram])[0]
+                    cv.imshow("patch", patch)
+                    cv.waitKey(0)
+                    cv.destroyAllWindows()
                     if predicted_label == FaceClasses.Face: # scale detection back to original scale
+                        print("face detected")
                         detections.append((x // scale, y // scale, x // scale + SW_W // scale, y // scale + SW_H // scale))
 
 
-
+            # print(f"Scale is now {scale}, width is {w * scale}, height is {h * scale}")
             scale = scale - scale * SCALE_FACTOR
 
         # now we have to filter out non-maximal detections
-        print(f"Finished an image")
+        print(f"Finished image {img_index} out of {len(valid_data)} images.")
         scores = np.ones(len(detections))
-        detections, _ = non_maximal_suppression(detections, scores, image.shape)
+        detections, _ = non_maximal_suppression(np.asarray(detections), scores, image.shape)
         all_detections.append([detections])
 
     return all_detections
