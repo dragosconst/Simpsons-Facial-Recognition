@@ -5,9 +5,13 @@ import cv2 as cv
 from Code.Logical.classes import ImageClasses, FaceClasses
 
 TRAIN_PATH = "antrenare/"
+VALID_PATH = "validare/"
+VALID_IM_PATH = "simpsons_validare"
 DATA_PATH = "data/"
 FACES = "faces"
 FACES_LAB = "faces_labeled"
+VALID = "valid"
+VALID_LAB = "valid_lab"
 NEG = "negative"
 NAMES = ["bart", "homer", "lisa", "marge"]
 IMGS_PER_CHAR = 1101  # holds true for all names
@@ -127,3 +131,61 @@ def get_examples():
         np.save(os.path.join(DATA_PATH, FACES_LAB + ".npy"), faces_labels)
         np.save(os.path.join(DATA_PATH, NEG + ".npy"), negatives)
     return faces, faces_labels, negatives
+
+def match_beginning_of_line_valid(line, filename):
+    for index, char in enumerate(filename):
+        if line[index] != filename[index]:
+            return False
+    return True
+
+def get_data_from_line_valid(line, filename):
+    # it's assumed line begins with filename
+    relevant_line = line[len(filename):].split(" ")
+    im_class = relevant_line[4]
+    if im_class == "bart":
+        im_class = ImageClasses.Bart.value
+    elif im_class == "homer":
+        im_class = ImageClasses.Homer.value
+    elif im_class == "marge":
+        im_class = ImageClasses.Marge.value
+    elif im_class == "lisa":
+        im_class = ImageClasses.Lisa.value
+    elif im_class == "unknown":
+        im_class = ImageClasses.Unknown.value
+    return int(relevant_line[0]), int(relevant_line[1]), int(relevant_line[2]), int(relevant_line[3]), im_class
+
+
+def load_raw_valid():
+    valid = []
+    valid_labels = []
+    imgs_path = os.path.join(VALID_PATH + VALID_IM_PATH + "/", "*.jpg")
+    gt_path = os.path.join(VALID_PATH, VALID_IM_PATH + ".txt")
+    gt_file = open(gt_path, "rt")
+    gt_lines = gt_file.readlines()
+    line_index = 0
+    files = glob(imgs_path)
+    for index, file in enumerate(files):
+        img = cv.imread(file)
+        oldw, oldh = img.shape[1], img.shape[0]
+        img = cv.resize(img, (IM_WIDTH, IM_HEIGHT))
+        valid.append(img)
+        while line_index < len(gt_lines) and match_beginning_of_line_valid(gt_lines[line_index], file):
+            x1, y1, x2, y2, im_class = get_data_from_line_valid(gt_lines[line_index], file)
+            fx, fy = IM_WIDTH/oldw, IM_HEIGHT/oldh
+            x1, y1, x2, y2 = int(x1 * fx), int(y1 * fy), int(x2 * fx), int(y2 * fy)
+            valid_labels.append((len(valid) - 1, x1, y1, x2, y2, im_class))
+            line_index += 1
+    valid = np.asarray(valid)
+    valid_labels = np.asarray(valid_labels)
+    return valid, valid_labels
+
+def get_valid():
+    valid_npy = os.path.join(DATA_PATH, "valid.npy")
+    if os.path.exists(valid_npy):
+        valid = np.load(os.path.join(DATA_PATH, VALID + ".npy"), allow_pickle=True)
+        valid_labels = np.load(os.path.join(DATA_PATH, VALID_LAB + ".npy"), allow_pickle=True)
+    else:
+        valid, valid_labels = load_raw_valid()
+        np.save(os.path.join(DATA_PATH, VALID + ".npy"), valid)
+        np.save(os.path.join(DATA_PATH, VALID_LAB + ".npy"), valid_labels)
+    return valid, valid_labels

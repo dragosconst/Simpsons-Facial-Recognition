@@ -5,6 +5,7 @@ from sklearn.preprocessing import StandardScaler
 from Code.IO.save_histograms import load_sift_h, save_sift_h, save_hog_h, load_hog_h
 from Code.IO.load_data import FACE_WIDTH, FACE_HEIGHT
 from skimage.feature import hog
+from sklearn.svm import LinearSVC
 
 K = 50 # how many centroids to use in k-means
 HOG_W = FACE_WIDTH / 4
@@ -65,3 +66,11 @@ def extract_features_facial_sift(positive_examples, negative_examples):
 
     save_sift_h(feature_histograms_pos, feature_histograms_neg)
     return feature_histograms_pos, feature_histograms_neg
+
+def train_svm_facial(train_data, train_labels):
+    svm = LinearSVC(C = 10 ** -2)
+    svm.fit(train_data, train_labels)
+    print(f"Score on train data {svm.score(train_data, train_labels)}")
+
+    return svm
+
