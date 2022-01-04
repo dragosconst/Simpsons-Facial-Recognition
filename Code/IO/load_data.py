@@ -15,8 +15,8 @@ CHARS = 4
 IMGS = CHARS * IMGS_PER_CHAR
 IM_WIDTH = 64
 IM_HEIGHT = 128
-FACE_WIDTH = 16
-FACE_HEIGHT = 16
+FACE_WIDTH = 32
+FACE_HEIGHT = 32
 NEG_EX_PER_IMG = 10
 
 """
@@ -52,7 +52,7 @@ def get_data_from_line(line):
     return int(relevant_line[0]), int(relevant_line[1]), int(relevant_line[2]), int(relevant_line[3]), im_class
 
 def load_raw_imgs():
-    faces_coords_labeled = []
+    faces_labeled = []
     faces = []
     bad_faces = []
     for name in NAMES:
@@ -76,8 +76,8 @@ def load_raw_imgs():
                 fx, fy = IM_WIDTH/oldw, IM_HEIGHT/oldh # account for resizing
                 x1, y1, x2, y2 = int(x1 * fx), int(y1 * fy), int(x2 * fx), int(y2 * fy)
                 faces.append(cv.resize(img[y1:y2, x1:x2],(FACE_WIDTH, FACE_HEIGHT)))
-                cv.imwrite(DATA_PATH + "faces/" + str(index) + ".jpg", cv.resize(img[y1:y2, x1:x2],(FACE_WIDTH, FACE_HEIGHT)))
-                faces_coords_labeled.append((len(faces) - 1, x1, y1, x2, y2, im_class))
+                cv.imwrite(DATA_PATH + "faces/" + str(len(faces)) + ".jpg", cv.resize(img[y1:y2, x1:x2],(FACE_WIDTH, FACE_HEIGHT)))
+                faces_labeled.append((len(faces) - 1, im_class))
                 # faces_coords.append((len(faces) - 1, x1, y1, x2, y2, FaceClasses.Face.value))
                 valid_pixels[max(y1 - FACE_HEIGHT, 0):y2, max(x1 - FACE_WIDTH, 0):x2] = -1 # make sure we won't choose negative examples that contain faces
                 line_index += 1
@@ -102,10 +102,10 @@ def load_raw_imgs():
 
     faces = np.asarray(faces)
     # faces_coords = np.asarray(faces_coords)
-    faces_coords_labeled = np.asarray(faces_coords_labeled)
+    faces_labeled = np.asarray(faces_labeled)
     bad_faces = np.asarray(bad_faces)
     # bad_faces_coords = np.asarray(bad_faces_coords)
-    return faces, faces_coords_labeled, bad_faces
+    return faces, faces_labeled, bad_faces
 
 
 
