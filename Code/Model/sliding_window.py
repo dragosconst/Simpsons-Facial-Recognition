@@ -3,16 +3,20 @@ import cv2 as cv
 from Code.Model.cnn_bow import extract_sift_features_image, K
 from scipy.cluster.vq import vq
 from Code.Logical.classes import FaceClasses
+from Code.IO.load_data import FACE_WIDTH, FACE_HEIGHT, IM_WIDTH, IM_HEIGHT
+from sklearn.preprocessing import StandardScaler
+from tensorflow.keras.applications import VGG19, vgg19
+from tensorflow.keras.preprocessing.image import img_to_array, array_to_img
 
 IOU_THRESH = 0.3
-MAX_IMG_WIDTH = 400
-MAX_IMG_HEIGHT = 400
-FAC_RESIZE = 2
+MAX_IMG_WIDTH = 300
+MAX_IMG_HEIGHT = 300
+FAC_RESIZE = 1.5
 SCALE_FACTOR = 0.2
 STRIDE_Y = 2
 STRIDE_X = 2
-SW_W = 32
-SW_H = 32
+SW_W = 16
+SW_H = 48
 
 def intersection_over_union(bbox_a, bbox_b):
     x_a = max(bbox_a[0], bbox_b[0])
@@ -69,20 +73,27 @@ def non_maximal_suppression(image_detections, image_scores, image_size):
     return sorted_image_detections[is_maximal], sorted_scores[is_maximal]
 
 # check it can actually detect any faces at all?? lol
-def check_detections_directly(valid_data, valid_labels, code_book, svm):
-    sift = cv.SIFT_create(edgeThreshold=15, contrastThreshold=0.03)
-    kps = []
-    for im_index, image in enumerate(valid_data):
-        kp = sift.detect(image, None)
-        kps.append(kp)
-    kps, dp = sift.compute(valid_data, kps)
-    histograms = np.zeros((len(valid_data), K), np.float32)
-    for im_index, image in enumerate(valid_data):
-        vwords, distances = vq(dp[im_index], code_book)
-        for vw in vwords:
-            histograms[im_index, vw] += 1
+def check_detections_directly(valid_data, valid_labels, code_book, classifier, scaler):
+    # sift = cv.SIFT_create(edgeThreshold=15, contrastThreshold=0.03)
+    # kps = []
+    # for im_index, image in enumerate(valid_data):
+    #     kp = sift.detect(image, None)
+    #     kps.append(kp)
+    # kps, dp = sift.compute(valid_data, kps)
+    # histograms = np.zeros((len(valid_data), K), np.float32)
+    # for im_index, image in enumerate(valid_data):
+    #     vwords, distances = vq(dp[im_index], code_book)
+    #     for vw in vwords:
+    #         histograms[im_index, vw] += 1
 
-    print(f"Score on real data is {svm.score(histograms, valid_labels)}")
+    # valid_data = valid_data.reshape(valid_data.shape[0], valid_data.shape[1] * valid_data.shape[2] * valid_data.shape[3])
+    # scaler.fit(valid_data)
+    # valid_data = scaler.transform(valid_data)
+    # valid_data = valid_data.reshape(valid_data.shape[0], FACE_HEIGHT, FACE_WIDTH, 3)
+    valid_data = vgg19.preprocess_input(valid_data)
+    vgg = VGG19(include_top=False, input_shape=(FACE_HEIGHT, FACE_WIDTH, 3))
+    valid_features = vgg.predict(valid_data)
+    print(f"Score on real data is {classifier.evaluate(valid_features, valid_labels, verbose=1)}")
 
 
 """
@@ -91,45 +102,46 @@ resizing, meaning that I have a max bound for resizing, and no min bound -  I ju
 untill it gets smaller than the sliding windows times a factor.
 The final coordinates returned will obviously be returned for the initial image.
 """
-def sliding_window_valid(valid_data, code_book, svm):
+def sliding_window_valid(valid_data, classifier):
     all_detections = []
+    vgg = VGG19(include_top=False, input_shape=(FACE_HEIGHT, FACE_WIDTH, 3))
     for img_index, image in enumerate(valid_data):
         h, w, _ = image.shape
         scale = min(MAX_IMG_HEIGHT / h, MAX_IMG_WIDTH / w)
         detections = []
+        scores = []
         # go from highest possible scaling to smallest scaling
         while h * scale >= FAC_RESIZE * SW_H and w * scale >= FAC_RESIZE * SW_H:
-            img = cv.resize(image, (0, 0), fx=scale, fy=scale)
+            img = img_to_array(array_to_img(image).resize((int(h * scale), int(w * scale))))
 
+            print(f"Scale is now {scale}, width is {w * scale}, height is {h * scale}")
             # apply sliding window on img
             for y in range(0, img.shape[0] - SW_H + 1, STRIDE_Y):
-                # print(f"y is {y}, stop at {img.shape[0] - SW_H + 1}")
                 for x in range(0, img.shape[1] - SW_W + 1, STRIDE_X):
                     patch = img[y:y+SW_H, x:x+SW_W]
+                    patch = img_to_array(array_to_img(patch).resize((FACE_WIDTH, FACE_HEIGHT)))
 
-                    # extract histogram of patch
-                    histogram = np.zeros(K)
-                    descriptors = extract_sift_features_image(patch)
-                    vwords, distances = vq(descriptors, code_book)
-                    for vw in vwords:
-                        histogram[vw] += 1
+                    # histogram = scaler.transform([histogram])[0]
+                    patch = vgg19.preprocess_input(patch)
+                    features = vgg.predict([patch])[0]
 
-                    predicted_label = svm.predict([histogram])[0]
-                    cv.imshow("patch", patch)
-                    cv.waitKey(0)
-                    cv.destroyAllWindows()
-                    if predicted_label == FaceClasses.Face: # scale detection back to original scale
+                    predicted_label = classifier.predict_classes(np.asarray([features]))[0]
+                    if predicted_label == FaceClasses.Face.value: # scale detection back to original scale
                         print("face detected")
+                        scores.append(np.dot(classifier.coef_, features)[0] + classifier.intercept_[0])
                         detections.append((x // scale, y // scale, x // scale + SW_W // scale, y // scale + SW_H // scale))
 
-
-            # print(f"Scale is now {scale}, width is {w * scale}, height is {h * scale}")
             scale = scale - scale * SCALE_FACTOR
 
         # now we have to filter out non-maximal detections
         print(f"Finished image {img_index} out of {len(valid_data)} images.")
-        scores = np.ones(len(detections))
+        scores = np.asarray(scores, np.int32)
         detections, _ = non_maximal_suppression(np.asarray(detections), scores, image.shape)
-        all_detections.append([detections])
+        detections = detections.astype(np.int32)
+        for x1, y1, x2, y2 in detections:
+            cv.imshow("final_detection", image[y1:y2, x1:x2, :])
+            cv.waitKey(0)
+            cv.destroyAllWindows()
+        all_detections.append(detections)
 
     return all_detections

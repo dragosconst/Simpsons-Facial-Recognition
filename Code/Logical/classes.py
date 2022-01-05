@@ -8,5 +8,5 @@ class ImageClasses(Enum):
     Unknown = 4
 
 class FaceClasses(Enum):
-    Face = 1
-    NoFace = -1
+    Face = 0
+    NoFace = 1

@@ -1,11 +1,27 @@
 import cv2 as cv
 import numpy as np
+import sys
 from scipy.cluster.vq import kmeans,vq
 from sklearn.preprocessing import StandardScaler
-from Code.IO.save_histograms import load_sift_h, save_sift_h, save_hog_h, load_hog_h
+from Code.IO.save_histograms import load_sift_h, save_sift_h, save_hog_h, load_hog_h, save_vgg_features, load_vgg_features, save_cnn, load_cnn
 from Code.IO.load_data import FACE_WIDTH, FACE_HEIGHT
+from Code.Data_Processing.create_train_data import create_train_data_facial
 from skimage.feature import hog
 from sklearn.svm import LinearSVC
+import tensorflow as tf
+from tensorflow.keras import datasets, layers, models, backend, activations, regularizers
+from tensorflow.keras.layers import Dense, Conv2D, MaxPool2D, Flatten, Activation, Dropout, BatchNormalization
+from tensorflow.python.client import device_lib
+from tensorflow.keras.initializers import GlorotNormal
+from tensorflow.keras.optimizers import SGD
+from tensorflow.keras.optimizers.schedules import ExponentialDecay
+from tensorflow.keras.preprocessing.image import img_to_array, load_img, ImageDataGenerator
+from tensorflow.keras.preprocessing import image_dataset_from_directory
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.applications import VGG19, vgg19
+from sklearn.model_selection import train_test_split
+
 
 K = 50 # how many centroids to use in k-means
 HOG_W = FACE_WIDTH / 4
@@ -71,12 +87,21 @@ def extract_features_facial_sift(positive_examples, negative_examples):
     save_sift_h(feature_histograms_pos, feature_histograms_neg, complete_cb)
     return feature_histograms_pos, feature_histograms_neg, complete_cb
 
+def extract_VGG19_features_set(t_data):
+    # if load_vgg_features() is not None:
+    #     return load_vgg_features()
+
+    t_data = vgg19.preprocess_input(t_data)
+    vgg = VGG19(include_top=False, input_shape=(FACE_HEIGHT, FACE_WIDTH, 3))
+    # vgg.summary()
+    stuff = vgg.predict(t_data)
+    save_vgg_features(stuff)
+    return stuff
+
 def extract_sift_features_image(image):
     sift = cv.SIFT_create(edgeThreshold=15, contrastThreshold=0.03)
     kp = sift.detect(image, None)
     kps, dp = sift.compute(image, kp)
-    if dp is None:
-        return np.zeros((1, sift.descriptorSize()), np.float32)
     return dp
 
 def train_svm_facial(train_data, train_labels):
@@ -86,3 +111,60 @@ def train_svm_facial(train_data, train_labels):
 
     return svm
 
+
+def train_cnn_facial(train_data, train_labels):
+    # cnn = models.Sequential()
+    # # cnn.add(Conv2D(32, (3, 3), activation='relu', input_shape=(FACE_HEIGHT, FACE_WIDTH, 3), kernel_initializer=GlorotNormal(),
+    # #                padding='valid'))
+    # # cnn.add(Conv2D(32, (3, 3), activation='relu', kernel_initializer=GlorotNormal(),
+    # #                padding='valid'))
+    # # cnn.add(BatchNormalization())
+    # # cnn.add(MaxPool2D((2, 2)))
+    # # cnn.add(Conv2D(64, (3, 3), activation='relu', kernel_initializer=GlorotNormal(), kernel_regularizer=regularizers.l2(1e-3)))
+    # # cnn.add(BatchNormalization())
+    # # cnn.add(MaxPool2D(2, 2))
+    # cnn.add(Flatten(input_shape=train_data[0].shape))
+    # cnn.add(Dense(200, kernel_initializer=GlorotNormal(), activation='relu'))
+    # cnn.add(Dropout(0.6))
+    # cnn.add(Dense(2, kernel_initializer=GlorotNormal(), activation='softmax'))
+    #
+    # # cnn.add(Dense(50, activation='tanh', input_shape=train_data[0].shape))#, kernel_initializer=GlorotNormal(), kernel_regularizer=regularizers.l2(0.001)))
+    # # # cnn.add(BatchNormalization())
+    # # # cnn.add(Dropout(0.6))
+    # # # cnn.add(Dense(100, activation='relu', kernel_initializer=GlorotNormal(), kernel_regularizer=regularizers.l2(0.001)))
+    # # # cnn.add(BatchNormalization())
+    # # # cnn.add(Dropout(0.6))
+    # # cnn.add(Dense(units=2, activation='sigmoid'))
+    # #
+    # cnn.summary()
+    # cnn.compile(optimizer=SGD(learning_rate=1e-3, decay=1e-2/200),
+    #            loss='sparse_categorical_crossentropy',
+    #            metrics=['accuracy'], run_eagerly=True)
+    #
+    # # early = EarlyStopping(monitor='loss', min_delta=1e-3, patience=30, mode='auto', restore_best_weights=True)
+    #
+    # for layer in cnn.layers: print(layer.get_config(), layer.get_weights())
+    # history = cnn.fit(train_data, train_labels, epochs=1, batch_size=64, verbose=2)
+    # for layer in cnn.layers: print(layer.get_config(), layer.get_weights())
+    # print(cnn.predict(train_data))
+    # print(history.history['loss'])
+
+    # if load_cnn() is not None:
+    #     return load_cnn()
+    cnn = models.Sequential()
+    cnn.add(Flatten(input_shape=train_data[0].shape))
+    cnn.add(Dense(100, activation='relu', kernel_initializer=GlorotNormal(), kernel_regularizer=regularizers.l2(1e-3)))
+    cnn.add(Dropout(0.6))
+    cnn.add(Dense(2, activation='softmax', kernel_initializer=GlorotNormal()))
+
+    cnn.summary()
+    cnn.compile(optimizer=SGD(learning_rate=1e-3, momentum=0.9, decay=1e-2 / 200),  # 200 = nr de epoci
+               loss='sparse_categorical_crossentropy',
+               metrics=['accuracy'])
+
+    early = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=30, mode='auto', restore_best_weights=True)
+
+    train_data, valid_data, train_labels, valid_labels = train_test_split(train_data, train_labels, test_size=0.15, stratify=train_labels)
+    cnn.fit(train_data, train_labels, epochs=5, batch_size=16, callbacks=[early],validation_data=(valid_data, valid_labels), verbose=1)
+    save_cnn(cnn)
+    return cnn

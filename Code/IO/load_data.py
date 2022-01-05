@@ -3,6 +3,8 @@ import numpy as np
 from glob import glob
 import cv2 as cv
 from Code.Logical.classes import ImageClasses, FaceClasses
+from PIL import Image
+from tensorflow.keras.preprocessing.image import img_to_array, array_to_img
 
 TRAIN_PATH = "antrenare/"
 VALID_PATH = "validare/"
@@ -17,10 +19,10 @@ NAMES = ["bart", "homer", "lisa", "marge"]
 IMGS_PER_CHAR = 1101  # holds true for all names
 CHARS = 4
 IMGS = CHARS * IMGS_PER_CHAR
-IM_WIDTH = 64
-IM_HEIGHT = 128
-FACE_WIDTH = 32
-FACE_HEIGHT = 32
+IM_WIDTH = 128
+IM_HEIGHT = 256
+FACE_WIDTH = 48
+FACE_HEIGHT = 48
 NEG_EX_PER_IMG = 10
 
 """
@@ -67,20 +69,21 @@ def load_raw_imgs():
         line_index = 0
         files = glob(imgs_path)
         for index, file in enumerate(files):
-            img = cv.imread(file)
+            img = Image.open(file)
+            img = img_to_array(img)
+            # img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
             oldw, oldh = img.shape[1], img.shape[0]
-            img = cv.resize(img, (IM_WIDTH, IM_HEIGHT))
             # generate positive examples
-            valid_pixels = [[i * IM_HEIGHT + j for j in range(IM_WIDTH)] for i in range(IM_HEIGHT)]
+            valid_pixels = [[i * img.shape[0] + j for j in range(img.shape[1])] for i in range(img.shape[0])]
             valid_pixels = np.array(valid_pixels)
             valid_pixels[-FACE_HEIGHT:, :] = -1 # so that i don't choose negative examples too close to the edges
             valid_pixels[:, -FACE_WIDTH:] = -1
             while line_index < len(gt_lines) and match_beginning_of_line(gt_lines[line_index], index):
                 x1, y1, x2, y2, im_class = get_data_from_line(gt_lines[line_index])
-                fx, fy = IM_WIDTH/oldw, IM_HEIGHT/oldh # account for resizing
-                x1, y1, x2, y2 = int(x1 * fx), int(y1 * fy), int(x2 * fx), int(y2 * fy)
-                faces.append(cv.resize(img[y1:y2, x1:x2],(FACE_WIDTH, FACE_HEIGHT)))
-                cv.imwrite(DATA_PATH + "faces/" + str(len(faces)) + ".jpg", cv.resize(img[y1:y2, x1:x2],(FACE_WIDTH, FACE_HEIGHT)))
+                # fx, fy = IM_WIDTH/oldw, IM_HEIGHT/oldh # account for resizing
+                # x1, y1, x2, y2 = int(x1 * fx), int(y1 * fy), int(x2 * fx), int(y2 * fy)
+                faces.append(img_to_array(array_to_img(img[y1:y2, x1:x2]).resize((FACE_WIDTH, FACE_HEIGHT))))
+                # array_to_img(img[y1:y2, x1:x2]).resize((FACE_WIDTH, FACE_HEIGHT)).save(DATA_PATH + "faces/" + str(len(faces)) + ".jpg")
                 faces_labeled.append((len(faces) - 1, im_class))
                 # faces_coords.append((len(faces) - 1, x1, y1, x2, y2, FaceClasses.Face.value))
                 valid_pixels[max(y1 - FACE_HEIGHT, 0):y2, max(x1 - FACE_WIDTH, 0):x2] = -1 # make sure we won't choose negative examples that contain faces
@@ -96,9 +99,9 @@ def load_raw_imgs():
                     break
 
                 index = np.random.randint(0, len(vp), size=1)
-                y, x = int(vp[index] / IM_HEIGHT), int(vp[index] % IM_HEIGHT)
+                y, x = int(vp[index] / img.shape[0]), int(vp[index] % img.shape[0])
                 bad_faces.append(img[y:y+FACE_HEIGHT, x:x+FACE_WIDTH])
-                cv.imwrite(DATA_PATH + "badfaces/" + str(index) + "_" + str(neg) + ".jpg", img[y:y+FACE_HEIGHT, x:x+FACE_WIDTH])
+                # array_to_img(img[y:y+FACE_HEIGHT, x:x+FACE_WIDTH]).save(DATA_PATH + "badfaces/" + str(index) + "_" + str(neg) + ".jpg")
                 # bad_faces_coords.append((len(faces) - 1, x, y, x + FACE_WIDTH, y + FACE_HEIGHT))
                 valid_pixels[y, x] = -1 # unlike with faces, overlapping negative examples shouldn't be too much of a problem,
                                         # but, at the same time, generating the same negative example over and over again isn't
@@ -165,17 +168,18 @@ def load_raw_valid():
     line_index = 0
     files = glob(imgs_path)
     for index, file in enumerate(files):
-        img = cv.imread(file)
+        img = Image.open(file)
+        img = img_to_array(img)
         oldw, oldh = img.shape[1], img.shape[0]
-        img = cv.resize(img, (IM_WIDTH, IM_HEIGHT))
+        # img = img_to_array(array_to_img(img).resize((IM_WIDTH, IM_HEIGHT)))
         valid.append(img)
         while line_index < len(gt_lines) and match_beginning_of_line_valid(gt_lines[line_index], file):
             x1, y1, x2, y2, im_class = get_data_from_line_valid(gt_lines[line_index], file)
-            fx, fy = IM_WIDTH/oldw, IM_HEIGHT/oldh
-            x1, y1, x2, y2 = int(x1 * fx), int(y1 * fy), int(x2 * fx), int(y2 * fy)
+            # fx, fy = IM_WIDTH/oldw, IM_HEIGHT/oldh
+            # x1, y1, x2, y2 = int(x1 * fx), int(y1 * fy), int(x2 * fx), int(y2 * fy)
             valid_labels.append((len(valid) - 1, x1, y1, x2, y2, im_class))
             line_index += 1
-    valid = np.asarray(valid, np.uint8)
+    # valid = np.asarray(valid, np.uint8)
     valid_labels = np.asarray(valid_labels, np.int32)
     return valid, valid_labels
 
