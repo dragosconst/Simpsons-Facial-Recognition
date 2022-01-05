@@ -15,8 +15,8 @@ FAC_RESIZE = 1.5
 SCALE_FACTOR = 0.2
 STRIDE_Y = 2
 STRIDE_X = 2
-SW_W = 16
-SW_H = 48
+SW_W = 32
+SW_H = 64
 
 def intersection_over_union(bbox_a, bbox_b):
     x_a = max(bbox_a[0], bbox_b[0])
@@ -113,7 +113,7 @@ def sliding_window_valid(valid_data, classifier):
         # go from highest possible scaling to smallest scaling
         while h * scale >= FAC_RESIZE * SW_H and w * scale >= FAC_RESIZE * SW_H:
             img = img_to_array(array_to_img(image).resize((int(h * scale), int(w * scale))))
-
+            array_to_img(img).show()
             print(f"Scale is now {scale}, width is {w * scale}, height is {h * scale}")
             # apply sliding window on img
             for y in range(0, img.shape[0] - SW_H + 1, STRIDE_Y):
@@ -122,13 +122,15 @@ def sliding_window_valid(valid_data, classifier):
                     patch = img_to_array(array_to_img(patch).resize((FACE_WIDTH, FACE_HEIGHT)))
 
                     # histogram = scaler.transform([histogram])[0]
+                    old_patch = patch.copy()
                     patch = vgg19.preprocess_input(patch)
-                    features = vgg.predict([patch])[0]
+                    features = vgg.predict(np.asarray([patch]))[0]
 
                     predicted_label = classifier.predict_classes(np.asarray([features]))[0]
                     if predicted_label == FaceClasses.Face.value: # scale detection back to original scale
                         print("face detected")
-                        scores.append(np.dot(classifier.coef_, features)[0] + classifier.intercept_[0])
+                        scores.append(np.max(classifier.predict(np.asarray([features]))[0]))
+                        array_to_img(old_patch).show()
                         detections.append((x // scale, y // scale, x // scale + SW_W // scale, y // scale + SW_H // scale))
 
             scale = scale - scale * SCALE_FACTOR
@@ -139,9 +141,7 @@ def sliding_window_valid(valid_data, classifier):
         detections, _ = non_maximal_suppression(np.asarray(detections), scores, image.shape)
         detections = detections.astype(np.int32)
         for x1, y1, x2, y2 in detections:
-            cv.imshow("final_detection", image[y1:y2, x1:x2, :])
-            cv.waitKey(0)
-            cv.destroyAllWindows()
+            array_to_img(image[y1:y2, x1:x2, :]).show()
         all_detections.append(detections)
 
     return all_detections

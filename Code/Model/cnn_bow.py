@@ -148,9 +148,9 @@ def train_cnn_facial(train_data, train_labels):
     # for layer in cnn.layers: print(layer.get_config(), layer.get_weights())
     # print(cnn.predict(train_data))
     # print(history.history['loss'])
-
-    # if load_cnn() is not None:
-    #     return load_cnn()
+    #
+    if load_cnn() is not None:
+        return load_cnn()
     cnn = models.Sequential()
     cnn.add(Flatten(input_shape=train_data[0].shape))
     cnn.add(Dense(100, activation='relu', kernel_initializer=GlorotNormal(), kernel_regularizer=regularizers.l2(1e-3)))
