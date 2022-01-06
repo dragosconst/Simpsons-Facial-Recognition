@@ -38,12 +38,6 @@ def evaluate_detections_facial(detections, gt, valid):
                     print(overlap)
                     xd1, yd1, xd2, yd2 = box
                     x1, y1, x2, y2 = g_box
-                    cv.imshow("mypeci", valid[im_index][yd1:yd2, xd1:xd2])
-                    cv.waitKey(0)
-                    cv.destroyAllWindows()
-                    cv.imshow("mypeci", valid[im_index][y1:y2, x1:x2])
-                    cv.waitKey(0)
-                    cv.destroyAllWindows()
                     max_overlap = overlap
                     max_index = gt_index
             if max_overlap >= IOU_THRESH:

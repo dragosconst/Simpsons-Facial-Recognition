@@ -7,16 +7,17 @@ from Code.IO.load_data import FACE_WIDTH, FACE_HEIGHT, IM_WIDTH, IM_HEIGHT
 from sklearn.preprocessing import StandardScaler
 from tensorflow.keras.applications import VGG19, vgg19
 from tensorflow.keras.preprocessing.image import img_to_array, array_to_img
+from Code.Data_Processing.yellow_filter import apply_filters
 
 IOU_THRESH = 0.3
-MAX_IMG_WIDTH = 300
-MAX_IMG_HEIGHT = 300
-FAC_RESIZE = 1.5
+MAX_IMG_WIDTH = 155
+MAX_IMG_HEIGHT = 155
+FAC_RESIZE = 1.3
 SCALE_FACTOR = 0.2
 STRIDE_Y = 2
 STRIDE_X = 2
-SW_W = 32
-SW_H = 64
+SW_W = 23
+SW_H = 32
 
 def intersection_over_union(bbox_a, bbox_b):
     x_a = max(bbox_a[0], bbox_b[0])
@@ -112,32 +113,39 @@ def sliding_window_valid(valid_data, classifier):
         scores = []
         # go from highest possible scaling to smallest scaling
         while h * scale >= FAC_RESIZE * SW_H and w * scale >= FAC_RESIZE * SW_H:
-            img = img_to_array(array_to_img(image).resize((int(h * scale), int(w * scale))))
-            array_to_img(img).show()
+            img = img_to_array(array_to_img(image).resize((int(w * scale), int(h * scale))))
+            print(img.shape)
+            img_masked = apply_filters(img)
+            # array_to_img(img_masked).show()
             print(f"Scale is now {scale}, width is {w * scale}, height is {h * scale}")
             # apply sliding window on img
             for y in range(0, img.shape[0] - SW_H + 1, STRIDE_Y):
                 for x in range(0, img.shape[1] - SW_W + 1, STRIDE_X):
                     patch = img[y:y+SW_H, x:x+SW_W]
+                    old_patch = patch.copy()
+                    patch_masked = img_masked[y:y+SW_H, x:x+SW_W]
+                    if np.mean(patch_masked) <= 3:
+                        continue
                     patch = img_to_array(array_to_img(patch).resize((FACE_WIDTH, FACE_HEIGHT)))
 
                     # histogram = scaler.transform([histogram])[0]
-                    old_patch = patch.copy()
                     patch = vgg19.preprocess_input(patch)
                     features = vgg.predict(np.asarray([patch]))[0]
 
                     predicted_label = classifier.predict_classes(np.asarray([features]))[0]
                     if predicted_label == FaceClasses.Face.value: # scale detection back to original scale
-                        print("face detected")
+                        # print("face detected")
                         scores.append(np.max(classifier.predict(np.asarray([features]))[0]))
-                        array_to_img(old_patch).show()
-                        detections.append((x // scale, y // scale, x // scale + SW_W // scale, y // scale + SW_H // scale))
+                        # if img_index == 1:
+                        # array_to_img(old_patch).show(title='face')
+                        # array_to_img(image[int(y / scale):int((y + SW_H) / scale), int(x / scale):int((x  + SW_W) / scale)]).show(title='original')
+                        detections.append((x // scale, y // scale, (x  + SW_W) // scale, (y + SW_H) // scale))
 
             scale = scale - scale * SCALE_FACTOR
 
         # now we have to filter out non-maximal detections
         print(f"Finished image {img_index} out of {len(valid_data)} images.")
-        scores = np.asarray(scores, np.int32)
+        scores = np.asarray(scores, np.float32)
         detections, _ = non_maximal_suppression(np.asarray(detections), scores, image.shape)
         detections = detections.astype(np.int32)
         for x1, y1, x2, y2 in detections:

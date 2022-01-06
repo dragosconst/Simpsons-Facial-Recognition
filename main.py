@@ -12,7 +12,7 @@ from tensorflow.keras.preprocessing.image import img_to_array, array_to_img
 def main():
     faces, faces_coords, negatives = get_examples()
     valid, valid_labels = get_valid()
-    t_data, t_labels = create_train_data_facial(faces, negatives[np.random.choice(len(negatives), size=30000)])
+    t_data, t_labels = create_train_data_facial(faces, negatives)
     # for train in t_data:
     #     c_train = array_to_img(train)
     #     c_train.show()
@@ -29,8 +29,8 @@ def main():
     print("stuff")
     # valid, valid_labels = create_valid_data(valid, valid_labels)
     # check_detections_directly(valid, valid_labels, None, cnn, scaler)
-    detections = sliding_window_valid(valid[:2], cnn)
-    # evaluate_detections_facial(detections, valid_labels, valid)
+    detections = sliding_window_valid(valid[:10], cnn)
+    evaluate_detections_facial(detections, valid_labels, valid[:10])
 
 if __name__ == "__main__":
     main()

@@ -88,8 +88,8 @@ def extract_features_facial_sift(positive_examples, negative_examples):
     return feature_histograms_pos, feature_histograms_neg, complete_cb
 
 def extract_VGG19_features_set(t_data):
-    # if load_vgg_features() is not None:
-    #     return load_vgg_features()
+    if load_vgg_features() is not None:
+        return load_vgg_features()
 
     t_data = vgg19.preprocess_input(t_data)
     vgg = VGG19(include_top=False, input_shape=(FACE_HEIGHT, FACE_WIDTH, 3))
@@ -113,42 +113,6 @@ def train_svm_facial(train_data, train_labels):
 
 
 def train_cnn_facial(train_data, train_labels):
-    # cnn = models.Sequential()
-    # # cnn.add(Conv2D(32, (3, 3), activation='relu', input_shape=(FACE_HEIGHT, FACE_WIDTH, 3), kernel_initializer=GlorotNormal(),
-    # #                padding='valid'))
-    # # cnn.add(Conv2D(32, (3, 3), activation='relu', kernel_initializer=GlorotNormal(),
-    # #                padding='valid'))
-    # # cnn.add(BatchNormalization())
-    # # cnn.add(MaxPool2D((2, 2)))
-    # # cnn.add(Conv2D(64, (3, 3), activation='relu', kernel_initializer=GlorotNormal(), kernel_regularizer=regularizers.l2(1e-3)))
-    # # cnn.add(BatchNormalization())
-    # # cnn.add(MaxPool2D(2, 2))
-    # cnn.add(Flatten(input_shape=train_data[0].shape))
-    # cnn.add(Dense(200, kernel_initializer=GlorotNormal(), activation='relu'))
-    # cnn.add(Dropout(0.6))
-    # cnn.add(Dense(2, kernel_initializer=GlorotNormal(), activation='softmax'))
-    #
-    # # cnn.add(Dense(50, activation='tanh', input_shape=train_data[0].shape))#, kernel_initializer=GlorotNormal(), kernel_regularizer=regularizers.l2(0.001)))
-    # # # cnn.add(BatchNormalization())
-    # # # cnn.add(Dropout(0.6))
-    # # # cnn.add(Dense(100, activation='relu', kernel_initializer=GlorotNormal(), kernel_regularizer=regularizers.l2(0.001)))
-    # # # cnn.add(BatchNormalization())
-    # # # cnn.add(Dropout(0.6))
-    # # cnn.add(Dense(units=2, activation='sigmoid'))
-    # #
-    # cnn.summary()
-    # cnn.compile(optimizer=SGD(learning_rate=1e-3, decay=1e-2/200),
-    #            loss='sparse_categorical_crossentropy',
-    #            metrics=['accuracy'], run_eagerly=True)
-    #
-    # # early = EarlyStopping(monitor='loss', min_delta=1e-3, patience=30, mode='auto', restore_best_weights=True)
-    #
-    # for layer in cnn.layers: print(layer.get_config(), layer.get_weights())
-    # history = cnn.fit(train_data, train_labels, epochs=1, batch_size=64, verbose=2)
-    # for layer in cnn.layers: print(layer.get_config(), layer.get_weights())
-    # print(cnn.predict(train_data))
-    # print(history.history['loss'])
-    #
     if load_cnn() is not None:
         return load_cnn()
     cnn = models.Sequential()
@@ -165,6 +129,6 @@ def train_cnn_facial(train_data, train_labels):
     early = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=30, mode='auto', restore_best_weights=True)
 
     train_data, valid_data, train_labels, valid_labels = train_test_split(train_data, train_labels, test_size=0.15, stratify=train_labels)
-    cnn.fit(train_data, train_labels, epochs=5, batch_size=16, callbacks=[early],validation_data=(valid_data, valid_labels), verbose=1)
+    cnn.fit(train_data, train_labels, epochs=10, batch_size=16, callbacks=[early],validation_data=(valid_data, valid_labels), verbose=1)
     save_cnn(cnn)
     return cnn
