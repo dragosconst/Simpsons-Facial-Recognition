@@ -10,6 +10,8 @@ S_CB = "sift_cb"
 H_POS_H = "hog_pos_hist"
 H_NEG_H = "hog_neg_hist"
 VGG_FEATURES = "vgg_features"
+AUG_POS = "aug_pos"
+AUG_NEG = "aug_neg"
 
 def save_sift_h(pos_h, neg_h, s_cb):
     np.save(DATA_PATH + S_POS_H + ".npy",pos_h)
@@ -55,4 +57,15 @@ def load_cnn():
     cnn_path = os.path.join(DATA_PATH, 'cnn.cnn')
     if os.path.exists(cnn_path):
         return load_model(cnn_path)
+    return None
+
+def save_augmented_features(features_pos, features_neg):
+    np.save(os.path.join(DATA_PATH, AUG_POS + ".npy"), features_pos)
+    np.save(os.path.join(DATA_PATH, AUG_NEG + ".npy"), features_neg)
+
+def load_augmented_features():
+    ft_path = os.path.join(DATA_PATH, AUG_POS + ".npy")
+    neg_path = os.path.join(DATA_PATH, AUG_NEG + ".npy")
+    if os.path.exists(ft_path):
+        return np.load(ft_path), np.load(neg_path)
     return None

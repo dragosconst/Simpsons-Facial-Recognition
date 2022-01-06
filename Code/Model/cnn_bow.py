@@ -3,9 +3,10 @@ import numpy as np
 import sys
 from scipy.cluster.vq import kmeans,vq
 from sklearn.preprocessing import StandardScaler
-from Code.IO.save_histograms import load_sift_h, save_sift_h, save_hog_h, load_hog_h, save_vgg_features, load_vgg_features, save_cnn, load_cnn
+from Code.IO.save_histograms import load_sift_h, save_sift_h, save_hog_h, load_hog_h, save_vgg_features, load_vgg_features, save_cnn, load_cnn, load_augmented_features, save_augmented_features
 from Code.IO.load_data import FACE_WIDTH, FACE_HEIGHT
 from Code.Data_Processing.create_train_data import create_train_data_facial
+from Code.Data_Processing.augmentation import BATCH
 from skimage.feature import hog
 from sklearn.svm import LinearSVC
 import tensorflow as tf
@@ -98,6 +99,17 @@ def extract_VGG19_features_set(t_data):
     save_vgg_features(stuff)
     return stuff
 
+def extract_VGG19_features_augmented(datagen_pos, datagen_neg, pos_len, neg_len):
+    # if load_augmented_features() is not None:
+    #     return load_augmented_features()
+
+    vgg = VGG19(include_top=False, input_shape=(FACE_HEIGHT, FACE_WIDTH, 3))
+    # vgg.summary()
+    features_pos = vgg.predict_generator(datagen_pos, pos_len//BATCH)
+    features_neg = vgg.predict_generator(datagen_neg, neg_len//BATCH)
+    save_augmented_features(features_pos, features_neg)
+    return features_pos, features_neg
+
 def extract_sift_features_image(image):
     sift = cv.SIFT_create(edgeThreshold=15, contrastThreshold=0.03)
     kp = sift.detect(image, None)
@@ -129,6 +141,6 @@ def train_cnn_facial(train_data, train_labels):
     early = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=30, mode='auto', restore_best_weights=True)
 
     train_data, valid_data, train_labels, valid_labels = train_test_split(train_data, train_labels, test_size=0.15, stratify=train_labels)
-    cnn.fit(train_data, train_labels, epochs=10, batch_size=16, callbacks=[early],validation_data=(valid_data, valid_labels), verbose=1)
+    cnn.fit(train_data, train_labels, epochs=20, batch_size=16, callbacks=[early],validation_data=(valid_data, valid_labels), verbose=1)
     save_cnn(cnn)
     return cnn

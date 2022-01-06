@@ -22,8 +22,9 @@ def evaluate_detections_facial(detections, gt, valid):
     false_detections = np.zeros(np.sum(np.asarray([len(x) for x in detections])))
     gt_exists_detection = np.zeros(len(gt))
 
+    d_index = 0
     for im_index, detection in enumerate(detections):
-        for d_index, box in enumerate(detection):
+        for box in detection:
             max_overlap = -1
             max_index = None
             for gt_index, tuples in enumerate(gt):
@@ -50,11 +51,12 @@ def evaluate_detections_facial(detections, gt, valid):
                     false_detections[d_index] = 1
             else:
                 false_detections[d_index] = 1
+            d_index += 1
 
     cum_false_positive = np.cumsum(false_detections)
     cum_true_positive = np.cumsum(true_detections)
 
-    rec = cum_true_positive / np.sum(np.asarray([len(x) for x in detections]))
+    rec = cum_true_positive / len(true_detections)
     prec = cum_true_positive / (cum_true_positive + cum_false_positive)
     average_precision = compute_average_precision(rec, prec)
     plt.plot(rec, prec, '-')
