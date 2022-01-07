@@ -14,6 +14,7 @@ FACES = "faces"
 FACES_LAB = "faces_labeled"
 VALID = "valid"
 VALID_LAB = "valid_lab"
+VALID_FL = "valid_files"
 NEG = "negative"
 NAMES = ["bart", "homer", "lisa", "marge"]
 IMGS_PER_CHAR = 1101  # holds true for all names
@@ -161,6 +162,7 @@ def get_data_from_line_valid(line, filename):
 def load_raw_valid():
     valid = []
     valid_labels = []
+    valid_files = []
     imgs_path = os.path.join(VALID_PATH + VALID_IM_PATH + "/", "*.jpg")
     gt_path = os.path.join(VALID_PATH, VALID_IM_PATH + ".txt")
     gt_file = open(gt_path, "rt")
@@ -173,6 +175,7 @@ def load_raw_valid():
         oldw, oldh = img.shape[1], img.shape[0]
         # img = img_to_array(array_to_img(img).resize((IM_WIDTH, IM_HEIGHT)))
         valid.append(img)
+        valid_files.append(file)
         while line_index < len(gt_lines) and match_beginning_of_line_valid(gt_lines[line_index], file):
             x1, y1, x2, y2, im_class = get_data_from_line_valid(gt_lines[line_index], file)
             # fx, fy = IM_WIDTH/oldw, IM_HEIGHT/oldh
@@ -181,15 +184,18 @@ def load_raw_valid():
             line_index += 1
     # valid = np.asarray(valid, np.uint8)
     valid_labels = np.asarray(valid_labels, np.int32)
-    return valid, valid_labels
+    valid_files = np.asarray(valid_files)
+    return valid, valid_labels, valid_files
 
 def get_valid():
-    valid_npy = os.path.join(DATA_PATH, "*.npy")
+    valid_npy = os.path.join(DATA_PATH, "valid.npy")
     if os.path.exists(valid_npy):
         valid = np.load(os.path.join(DATA_PATH, VALID + ".npy"), allow_pickle=True)
         valid_labels = np.load(os.path.join(DATA_PATH, VALID_LAB + ".npy"), allow_pickle=True)
+        valid_files = np.load(os.path.join(DATA_PATH, VALID_FL + ".npy"), allow_pickle=True)
     else:
-        valid, valid_labels = load_raw_valid()
+        valid, valid_labels, valid_files = load_raw_valid()
         np.save(os.path.join(DATA_PATH, VALID + ".npy"), valid)
         np.save(os.path.join(DATA_PATH, VALID_LAB + ".npy"), valid_labels)
-    return valid, valid_labels
+        np.save(os.path.join(DATA_PATH, VALID_FL + ".npy"), valid_files)
+    return valid, valid_labels, valid_files

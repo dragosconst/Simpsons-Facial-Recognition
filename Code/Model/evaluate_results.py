@@ -33,7 +33,7 @@ def evaluate_detections_facial(detections, scores, gt, valid):
         *box, im_index = detection
         max_overlap = -1
         max_index = None
-        print(box)
+        # print(box)
         for gt_index, tuples in enumerate(gt):
             g_index, *g_box, im_class = tuples
             if g_index < im_index:
@@ -67,8 +67,8 @@ def evaluate_detections_facial(detections, scores, gt, valid):
     cum_false_positive = np.cumsum(false_detections)
     cum_true_positive = np.cumsum(true_detections)
 
-    rec = cum_true_positive / len(valid)
-    print(rec, cum_true_positive, len(valid))
+    rec = cum_true_positive / len(gt)
+    print(rec, cum_true_positive, len(gt))
     prec = cum_true_positive / (cum_true_positive + cum_false_positive)
     average_precision = compute_average_precision(rec, prec)
     plt.plot(rec, prec, '-')
@@ -125,8 +125,8 @@ def evaluate_detections_classes(detections, scores, gt, valid):
     cum_false_positive = np.cumsum(false_detections)
     cum_true_positive = np.cumsum(true_detections)
 
-    rec = cum_true_positive / len(valid)
-    print(rec, cum_true_positive, len(valid))
+    rec = cum_true_positive / len(gt)
+    print(rec, cum_true_positive, len(gt))
     prec = cum_true_positive / (cum_true_positive + cum_false_positive)
     average_precision = compute_average_precision(rec, prec)
     plt.plot(rec, prec, '-')

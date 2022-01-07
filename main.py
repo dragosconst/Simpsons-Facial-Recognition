@@ -4,6 +4,7 @@ from Code.Data_Processing.create_train_data import create_train_data_facial, nor
 from Code.Model.sliding_window import sliding_window_valid, check_detections_directly
 from Code.Model.evaluate_results import evaluate_detections_facial, evaluate_detections_classes
 from Code.Model.cnn_face_classifier import classify_vgg19_features_facial
+from Code.IO.write_ans import write_detections_facial, write_detections_classes
 from sklearn.utils import shuffle
 from Code.Data_Processing.augmentation import augment_facial_data
 import numpy as np
@@ -15,7 +16,7 @@ from tensorflow.keras.preprocessing.image import img_to_array, array_to_img
 def main():
     faces, faces_coords, negatives = get_examples()
     hsum, wsum = 0, 0
-    valid, valid_labels = get_valid()
+    valid, valid_labels, valid_files = get_valid()
     t_data, t_labels = create_train_data_facial(faces.copy(), negatives)
     faces_coords = check_valid_labels(faces_coords)
     t_data_classes, t_labels_classes = create_train_data_face_classes(faces, faces_coords)
@@ -44,6 +45,8 @@ def main():
     detections, scores, classes_detections, scores_classes = sliding_window_valid(valid[:10], cnn, mlp)
     evaluate_detections_facial(detections, scores, valid_labels, valid[:10])
     evaluate_detections_classes(classes_detections, scores_classes, valid_labels, valid[:10])
+    write_detections_facial(detections, scores, valid_files)
+    write_detections_classes(classes_detections, scores_classes, valid_files)
 
 if __name__ == "__main__":
     main()

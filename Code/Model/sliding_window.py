@@ -50,7 +50,9 @@ This is called for one image at a time
 """
 def non_maximal_suppression(image_detections, image_scores, image_size, scores_extra=None):
     if len(image_detections) == 0:
-        return np.array([]), np.array([])
+        if scores_extra is None:
+            return np.array([]), np.array([])
+        return np.array([]), np.array([]), np.array([])
     x_out_of_bounds = np.where(image_detections[:, 2] > image_size[1])[0]
     y_out_of_bounds = np.where(image_detections[:, 3] > image_size[0])[0]
     print(x_out_of_bounds, y_out_of_bounds)
@@ -149,7 +151,7 @@ def sliding_window_valid(valid_data, classifier, faces_classifier):
         scores_detections = []
         # go from highest possible scaling to smallest scaling
         image_masked = apply_filters(image)
-        array_to_img(image).show()
+        # array_to_img(image).show()
         scale = MAX_SCALE
         while scale >= MIN_SCALE:
             print(scale)
@@ -226,8 +228,8 @@ def sliding_window_valid(valid_data, classifier, faces_classifier):
         faces_detections = faces_detections[good_indexes]
         scores_detections = scores_detections[good_indexes]
 
-        for x1, y1, x2, y2, _ in detections:
-            array_to_img(image[y1:y2, x1:x2, :]).show()
+        # for x1, y1, x2, y2, _ in detections:
+        #     array_to_img(image[y1:y2, x1:x2, :]).show()
         for index, detection in enumerate(detections):
             x1, y1, x2, y2, i_index = detection
             detections[index] = (int(x1 / scale_image), int(y1 / scale_image), int(x2 / scale_image), int(y2 / scale_image), i_index)
