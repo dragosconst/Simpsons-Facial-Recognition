@@ -10,6 +10,8 @@ S_CB = "sift_cb"
 H_POS_H = "hog_pos_hist"
 H_NEG_H = "hog_neg_hist"
 VGG_FEATURES = "vgg_features"
+VGG_FACES = "vgg_faces_features"
+VGG_MLP = "vgg_mlp"
 AUG_POS = "aug_pos"
 AUG_NEG = "aug_neg"
 
@@ -47,6 +49,25 @@ def load_vgg_features():
     if os.path.exists(ft_path):
         features = np.load(ft_path)
         return features
+    return None
+
+def save_vgg_faces_features(features):
+    np.save(os.path.join(DATA_PATH, VGG_FACES + ".npy"), features)
+
+def load_vgg_faces_features():
+    ft_path = os.path.join(DATA_PATH, VGG_FACES + ".npy")
+    if os.path.exists(ft_path):
+        features = np.load(ft_path)
+        return features
+    return None
+
+def save_vgg_mlp(mlp):
+    mlp.save(DATA_PATH + VGG_MLP)
+
+def load_vgg_mlp():
+    mlp_path = os.path.join(DATA_PATH, VGG_MLP)
+    if os.path.exists(mlp_path):
+        return load_model(mlp_path)
     return None
 
 def save_cnn(cnn):

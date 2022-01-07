@@ -16,13 +16,13 @@ DESIRED_WIDTH = 128
 DESIRED_HEIGHT = 256
 FAC_RESIZE = 1
 SCALE_FACTOR = 0.2
-MIN_SCALE = 0.75
+MIN_SCALE = 0.7
 MAX_SCALE = 3
-DIV_SCALE = 1.4
+DIV_SCALE = 1.42
 MIN_NEIGH = 0.5
 STRIDE_Y = 2
 STRIDE_X = 2
-SW_W = 25
+SW_W = 26
 SW_H = 32
 
 def intersection_over_union(bbox_a, bbox_b):
@@ -48,7 +48,7 @@ Params:
 - image_size: shape of original image
 This is called for one image at a time
 """
-def non_maximal_suppression(image_detections, image_scores, image_size):
+def non_maximal_suppression(image_detections, image_scores, image_size, scores_extra=None):
     if len(image_detections) == 0:
         return np.array([]), np.array([])
     x_out_of_bounds = np.where(image_detections[:, 2] > image_size[1])[0]
@@ -59,6 +59,8 @@ def non_maximal_suppression(image_detections, image_scores, image_size):
     sorted_indices = np.flipud(np.argsort(image_scores))
     sorted_image_detections = image_detections[sorted_indices]
     sorted_scores = image_scores[sorted_indices]
+    if scores_extra is not None:
+        sorted_exra = scores_extra[sorted_indices]
 
     is_maximal = np.ones(len(image_detections)).astype(bool)
     iou_threshold = IOU_THRESH
@@ -78,7 +80,9 @@ def non_maximal_suppression(image_detections, image_scores, image_size):
                             is_maximal[j] = False
 
 
-    return sorted_image_detections[is_maximal], sorted_scores[is_maximal]
+    if scores_extra is None:
+        return sorted_image_detections[is_maximal], sorted_scores[is_maximal]
+    return sorted_image_detections[is_maximal], sorted_scores[is_maximal], sorted_exra[is_maximal]
 
 def is_child(child, parent, to_print=False):
     x_a = max(child[0], parent[0])
@@ -104,7 +108,7 @@ def check_detections_directly(valid_data, valid_labels, code_book, classifier, s
     print(f"Score on real data is {classifier.evaluate(valid_features, valid_labels, verbose=1)}")
 
 def check_neighbours(image, x1, y1, sw_w, sw_h, classifier, vgg):
-    slide_factor = 0.25
+    slide_factor = 0.15
     up = image[max(0, int(y1 - slide_factor * sw_h)):max(0, int(y1 - slide_factor * sw_h) + sw_h), x1:x1+sw_w]
     up = img_to_array(array_to_img(up).resize((FACE_WIDTH, FACE_HEIGHT)))
     down = image[min(int(y1 + slide_factor * sw_h), image.shape[0]):min(int(y1 + slide_factor * sw_h) + sw_h, image.shape[0]), x1:x1+sw_w]
@@ -127,8 +131,11 @@ resizing, meaning that I have a max bound for resizing, and no min bound -  I ju
 untill it gets smaller than the sliding windows times a factor.
 The final coordinates returned will obviously be returned for the initial image.
 """
-def sliding_window_valid(valid_data, classifier):
+def sliding_window_valid(valid_data, classifier, faces_classifier):
     all_detections = []
+    all_scores = []
+    all_faces_detections = []
+    all_faces_scores = []
     vgg = VGG19(include_top=False, input_shape=(FACE_HEIGHT, FACE_WIDTH, 3))
     for img_index, image in enumerate(valid_data):
         h, w, _ = image.shape
@@ -137,7 +144,9 @@ def sliding_window_valid(valid_data, classifier):
         # scalew = DESIRED_WIDTH / w
         # scaleh = DESIRED_HEIGHT / h
         detections = []
+        faces_detections = []
         scores = []
+        scores_detections = []
         # go from highest possible scaling to smallest scaling
         image_masked = apply_filters(image)
         array_to_img(image).show()
@@ -166,7 +175,7 @@ def sliding_window_valid(valid_data, classifier):
                     #     cv.imshow('peci', cv.cvtColor(np.array(array_to_img(old_patch)), cv.COLOR_RGB2BGR))
                     #     cv.waitKey(0)
                     #     cv.destroyAllWindows()
-                    if predicted_label == FaceClasses.Face.value \
+                    if predicted_label == FaceClasses.Face.value\
                             and check_neighbours(image, x,y, sw_w, sw_h, classifier, vgg) >= MIN_NEIGH: # scale detection back to original scale
                         # print("face detected")
                         # scores.append(np.max(classifier.predict(np.asarray([features]))[0]))
@@ -175,7 +184,10 @@ def sliding_window_valid(valid_data, classifier):
                         # if img_index == 1:
                         # array_to_img(old_patch).show(title='face')
                         # array_to_img(image[int(y / scale):int((y + SW_H) / scale), int(x / scale):int((x  + SW_W) / scale)]).show(title='original')
-                        detections.append((x, y, x + sw_w, y + sw_h))
+                        detections.append((x, y, x + sw_w, y + sw_h, img_index))
+                        face_class = faces_classifier.predict_classes(np.asarray([features]))[0]
+                        scores_detections.append(np.max(faces_classifier.predict(np.asarray([features]))[0]))
+                        faces_detections.append((x, y, x + sw_w, y + sw_h, face_class, img_index))
 
             # detections, scores = non_maximal_suppression(np.asarray(detections), np.asarray(scores, np.float32), image.shape)
             # detections = list(detections)
@@ -188,8 +200,12 @@ def sliding_window_valid(valid_data, classifier):
         # now we have to filter out non-maximal detections
         print(f"Finished image {img_index} out of {len(valid_data)} images.")
         scores = np.asarray(scores, np.float32)
+        old_scores = scores.copy()
         detections, scores = non_maximal_suppression(np.asarray(detections), scores, image.shape)
+        scores_detections = np.asarray(scores_detections, np.float32)
+        faces_detections, _, scores_detections = non_maximal_suppression(np.asarray(faces_detections), old_scores, image.shape, scores_detections)
         detections = detections.astype(np.int32)
+        faces_detections = faces_detections.astype(np.int32)
         good_indexes = np.ones(len(detections)).astype(bool)
         for d_index, detection in enumerate(detections):
             if good_indexes[d_index] == False:
@@ -206,12 +222,23 @@ def sliding_window_valid(valid_data, classifier):
                 elif is_child(detection2, detection, to_print=True):
                     good_indexes[d_index2] = False
         detections = detections[good_indexes]
+        scores = scores[good_indexes]
+        faces_detections = faces_detections[good_indexes]
+        scores_detections = scores_detections[good_indexes]
 
-        for x1, y1, x2, y2 in detections:
+        for x1, y1, x2, y2, _ in detections:
             array_to_img(image[y1:y2, x1:x2, :]).show()
         for index, detection in enumerate(detections):
-            x1, y1, x2, y2 = detection
-            detections[index] = (int(x1 / scale_image), int(y1 / scale_image), int(x2 / scale_image), int(y2 / scale_image))
-        all_detections.append(detections)
+            x1, y1, x2, y2, i_index = detection
+            detections[index] = (int(x1 / scale_image), int(y1 / scale_image), int(x2 / scale_image), int(y2 / scale_image), i_index)
+        for index, detection in enumerate(faces_detections):
+            *coords, face, i_index = faces_detections[index]
+            x1, y1, x2, y2 = coords
+            faces_detections[index] = (int(x1 / scale_image), int(y1 / scale_image), int(x2 / scale_image), int(y2 / scale_image), face, i_index)
 
-    return all_detections
+        all_detections += list(detections)
+        all_scores += list(scores)
+        all_faces_detections += list(faces_detections)
+        all_faces_scores += list(scores_detections)
+
+    return np.asarray(all_detections), np.asarray(all_scores), np.asarray(all_faces_detections), np.asarray(all_faces_scores)

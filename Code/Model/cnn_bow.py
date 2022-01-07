@@ -3,7 +3,7 @@ import numpy as np
 import sys
 from scipy.cluster.vq import kmeans,vq
 from sklearn.preprocessing import StandardScaler
-from Code.IO.save_histograms import load_sift_h, save_sift_h, save_hog_h, load_hog_h, save_vgg_features, load_vgg_features, save_cnn, load_cnn, load_augmented_features, save_augmented_features
+from Code.IO.save_histograms import load_sift_h, save_sift_h, save_hog_h, load_hog_h, save_vgg_features, load_vgg_features, save_cnn, load_cnn, load_augmented_features, save_augmented_features, load_vgg_faces_features, save_vgg_faces_features
 from Code.IO.load_data import FACE_WIDTH, FACE_HEIGHT
 from Code.Data_Processing.create_train_data import create_train_data_facial
 from Code.Data_Processing.augmentation import BATCH
@@ -88,15 +88,20 @@ def extract_features_facial_sift(positive_examples, negative_examples):
     save_sift_h(feature_histograms_pos, feature_histograms_neg, complete_cb)
     return feature_histograms_pos, feature_histograms_neg, complete_cb
 
-def extract_VGG19_features_set(t_data):
-    if load_vgg_features() is not None:
+def extract_VGG19_features_set(t_data, faces_classes=False):
+    if not faces_classes and load_vgg_features() is not None:
         return load_vgg_features()
+    if faces_classes and load_vgg_faces_features() is not None:
+        return load_vgg_faces_features()
 
     t_data = vgg19.preprocess_input(t_data)
     vgg = VGG19(include_top=False, input_shape=(FACE_HEIGHT, FACE_WIDTH, 3))
     # vgg.summary()
     stuff = vgg.predict(t_data)
-    save_vgg_features(stuff)
+    if not faces_classes:
+        save_vgg_features(stuff)
+    else:
+        save_vgg_faces_features(stuff)
     return stuff
 
 def extract_VGG19_features_augmented(datagen_pos, datagen_neg, pos_len, neg_len):

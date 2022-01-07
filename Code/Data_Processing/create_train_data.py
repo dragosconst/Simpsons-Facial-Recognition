@@ -1,8 +1,9 @@
 import numpy as np
 import cv2 as cv
 import time
-from Code.Logical.classes import FaceClasses
+from Code.Logical.classes import FaceClasses, ImageClasses
 from Code.IO.load_data import FACE_WIDTH, FACE_HEIGHT
+from Code.IO.load_data import NAMES
 from sklearn.utils import shuffle
 from sklearn.preprocessing import StandardScaler
 from tensorflow.keras.preprocessing.image import img_to_array, array_to_img
@@ -17,6 +18,10 @@ def create_train_data_facial(pos_ex, neg_ex):
 
     train_data, train_labels = shuffle(train_data, train_labels)
     return train_data, train_labels
+
+def create_train_data_face_classes(faces, faces_labels):
+    t_data, t_labels = shuffle(faces, faces_labels)
+    return t_data, t_labels
 
 def normalize_train_data(train_data):
     scaler = StandardScaler()
@@ -46,3 +51,20 @@ def create_valid_data(valid_raw, valid_labels):
     vl = np.asarray(vl)
     return valid, vl
 
+def check_valid_labels(v_labels):
+    v_labels = list(v_labels)
+    for index, label in enumerate(v_labels):
+        f_index, im_class = label
+        if im_class in np.array([ImageClasses.Bart.value, ImageClasses.Homer.value, ImageClasses.Lisa.value, ImageClasses.Marge.value, ImageClasses.Unknown.value]):
+            continue
+        if im_class[:4] == "bart" or im_class == str(ImageClasses.Bart.value):
+            v_labels[index] = ImageClasses.Bart.value
+        elif im_class[:5] == "homer" or im_class == str(ImageClasses.Homer.value):
+            v_labels[index] = ImageClasses.Homer.value
+        elif im_class[:4] == "lisa" or im_class == str(ImageClasses.Lisa.value):
+            v_labels[index] = ImageClasses.Lisa.value
+        elif im_class[:5] == "marge" or im_class == str(ImageClasses.Marge.value):
+            v_labels[index] = ImageClasses.Marge.value
+        elif im_class[:7] == "unknown" or im_class == str(ImageClasses.Unknown.value):
+            v_labels[index] = ImageClasses.Unknown.value
+    return np.asarray(v_labels)
