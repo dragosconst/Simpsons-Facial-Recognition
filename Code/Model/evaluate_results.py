@@ -3,6 +3,8 @@ from Code.Model.sliding_window import intersection_over_union, IOU_THRESH
 import matplotlib.pyplot as plt
 import os
 import cv2 as cv
+import time
+from tensorflow.keras.preprocessing.image import img_to_array, array_to_img
 
 def compute_average_precision(rec, prec):
     m_rec = np.concatenate(([0], rec, [1]))
@@ -36,9 +38,12 @@ def evaluate_detections_facial(detections, gt, valid):
                 # here we have one of the true detections, let's check it against the current detection
                 overlap = intersection_over_union(box, g_box)
                 if overlap > max_overlap:
-                    print(overlap)
+                    # print(g_index, g_box, im_class)
                     xd1, yd1, xd2, yd2 = box
                     x1, y1, x2, y2 = g_box
+                    # array_to_img(valid[im_index][y1:y2, x1:x2]).show()
+                    # array_to_img(valid[im_index][yd1:yd2, xd1:xd2]).show()
+                    # time.sleep(3)
                     max_overlap = overlap
                     max_index = gt_index
             if max_overlap >= IOU_THRESH:
@@ -56,7 +61,8 @@ def evaluate_detections_facial(detections, gt, valid):
     cum_false_positive = np.cumsum(false_detections)
     cum_true_positive = np.cumsum(true_detections)
 
-    rec = cum_true_positive / len(true_detections)
+    rec = cum_true_positive / len(valid)
+    print(rec, cum_true_positive, len(valid))
     prec = cum_true_positive / (cum_true_positive + cum_false_positive)
     average_precision = compute_average_precision(rec, prec)
     plt.plot(rec, prec, '-')

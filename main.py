@@ -3,6 +3,7 @@ from Code.Model.cnn_bow import extract_features_facial_sift, train_svm_facial, t
 from Code.Data_Processing.create_train_data import create_train_data_facial, normalize_train_data, create_valid_data
 from Code.Model.sliding_window import sliding_window_valid, check_detections_directly
 from Code.Model.evaluate_results import evaluate_detections_facial
+from sklearn.utils import shuffle
 from Code.Data_Processing.augmentation import augment_facial_data
 import numpy as np
 import cv2 as cv
@@ -34,8 +35,9 @@ def main():
     print("stuff")
     # valid, valid_labels = create_valid_data(valid, valid_labels)
     # check_detections_directly(valid, valid_labels, None, cnn, scaler)
-    detections = sliding_window_valid(valid[:10], cnn)
-    evaluate_detections_facial(detections, valid_labels, valid[:10])
+    new_valid = shuffle(valid)
+    detections = sliding_window_valid(valid[:5], cnn)
+    evaluate_detections_facial(detections, valid_labels, valid[:5])
 
 if __name__ == "__main__":
     main()

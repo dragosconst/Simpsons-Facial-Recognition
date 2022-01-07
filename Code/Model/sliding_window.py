@@ -16,12 +16,13 @@ DESIRED_WIDTH = 128
 DESIRED_HEIGHT = 256
 FAC_RESIZE = 1
 SCALE_FACTOR = 0.2
-MIN_SCALE = 1
+MIN_SCALE = 0.75
 MAX_SCALE = 3
 DIV_SCALE = 1.4
+MIN_NEIGH = 0.5
 STRIDE_Y = 2
 STRIDE_X = 2
-SW_W = 23
+SW_W = 25
 SW_H = 32
 
 def intersection_over_union(bbox_a, bbox_b):
@@ -49,7 +50,7 @@ This is called for one image at a time
 """
 def non_maximal_suppression(image_detections, image_scores, image_size):
     if len(image_detections) == 0:
-        return [], None
+        return np.array([]), np.array([])
     x_out_of_bounds = np.where(image_detections[:, 2] > image_size[1])[0]
     y_out_of_bounds = np.where(image_detections[:, 3] > image_size[0])[0]
     print(x_out_of_bounds, y_out_of_bounds)
@@ -102,6 +103,23 @@ def check_detections_directly(valid_data, valid_labels, code_book, classifier, s
     valid_features = vgg.predict(valid_data)
     print(f"Score on real data is {classifier.evaluate(valid_features, valid_labels, verbose=1)}")
 
+def check_neighbours(image, x1, y1, sw_w, sw_h, classifier, vgg):
+    slide_factor = 0.3
+    up = image[max(0, int(y1 - slide_factor * sw_h)):max(0, int(y1 - slide_factor * sw_h) + sw_h), x1:x1+sw_w]
+    up = img_to_array(array_to_img(up).resize((FACE_WIDTH, FACE_HEIGHT)))
+    down = image[min(int(y1 + slide_factor * sw_h), image.shape[0]):min(int(y1 + slide_factor * sw_h) + sw_h, image.shape[0]), x1:x1+sw_w]
+    down = img_to_array(array_to_img(down).resize((FACE_WIDTH, FACE_HEIGHT)))
+    left = image[y1:y1+sw_h, max(0, int(x1 - slide_factor * sw_w)):max(0, int(x1 - slide_factor * sw_w)+sw_w)]
+    left = img_to_array(array_to_img(left).resize((FACE_WIDTH, FACE_HEIGHT)))
+    right = image[y1:y1+sw_h, min(int(x1 + slide_factor * sw_w), image.shape[1]):min(int(x1 + slide_factor * sw_w)+sw_w, image.shape[1])]
+    right = img_to_array(array_to_img(right).resize((FACE_WIDTH, FACE_HEIGHT)))
+    neighbours = np.array([up, down, left, right])
+    neighbours = vgg19.preprocess_input(neighbours)
+    neighbours_features = vgg.predict(neighbours)
+    neighbours_classes = classifier.predict(neighbours_features)
+    print(np.argmin(neighbours_classes[:, 0]))
+    return np.min(neighbours_classes[:, 0]) # return neighbour that looks least like a face
+
 
 """
 I will resize the image several times and apply the sliding window over each image. I will use a semi-smart
@@ -122,7 +140,7 @@ def sliding_window_valid(valid_data, classifier):
         scores = []
         # go from highest possible scaling to smallest scaling
         image_masked = apply_filters(image)
-        array_to_img(image_masked).show()
+        array_to_img(image).show()
         scale = MAX_SCALE
         while scale >= MIN_SCALE:
             print(scale)
@@ -132,7 +150,7 @@ def sliding_window_valid(valid_data, classifier):
             for y in range(0, image.shape[0] - sw_h + 1, STRIDE_Y):
                 for x in range(0, image.shape[1] - sw_w + 1, STRIDE_X):
                     patch = image[y:int(y+sw_h), x:int(x+sw_w)]
-                    old_patch = patch.copy()
+                    # old_patch = patch.copy()
                     patch_masked = image_masked[y:int(y+sw_h), x:int(x+sw_w)]
                     if (np.sum(patch_masked[:3, :]) <= 2 or np.sum(patch_masked[:, :3]) <= 2) or np.mean(patch_masked) <= 2:
                         continue
@@ -148,9 +166,11 @@ def sliding_window_valid(valid_data, classifier):
                     #     cv.imshow('peci', cv.cvtColor(np.array(array_to_img(old_patch)), cv.COLOR_RGB2BGR))
                     #     cv.waitKey(0)
                     #     cv.destroyAllWindows()
-                    if predicted_label == FaceClasses.Face.value: # scale detection back to original scale
+                    if predicted_label == FaceClasses.Face.value \
+                            and check_neighbours(image, x,y, sw_w, sw_h, classifier, vgg) >= MIN_NEIGH: # scale detection back to original scale
                         # print("face detected")
-                        scores.append(np.max(classifier.predict(np.asarray([features]))[0]))
+                        # scores.append(np.max(classifier.predict(np.asarray([features]))[0]))
+                        scores.append(check_neighbours(image, x, y, sw_w, sw_h, classifier, vgg))
                         # print(np.max(classifier.predict(np.asarray([features]))[0]))
                         # if img_index == 1:
                         # array_to_img(old_patch).show(title='face')
