@@ -104,7 +104,7 @@ def check_detections_directly(valid_data, valid_labels, code_book, classifier, s
     print(f"Score on real data is {classifier.evaluate(valid_features, valid_labels, verbose=1)}")
 
 def check_neighbours(image, x1, y1, sw_w, sw_h, classifier, vgg):
-    slide_factor = 0.3
+    slide_factor = 0.25
     up = image[max(0, int(y1 - slide_factor * sw_h)):max(0, int(y1 - slide_factor * sw_h) + sw_h), x1:x1+sw_w]
     up = img_to_array(array_to_img(up).resize((FACE_WIDTH, FACE_HEIGHT)))
     down = image[min(int(y1 + slide_factor * sw_h), image.shape[0]):min(int(y1 + slide_factor * sw_h) + sw_h, image.shape[0]), x1:x1+sw_w]
@@ -117,7 +117,7 @@ def check_neighbours(image, x1, y1, sw_w, sw_h, classifier, vgg):
     neighbours = vgg19.preprocess_input(neighbours)
     neighbours_features = vgg.predict(neighbours)
     neighbours_classes = classifier.predict(neighbours_features)
-    print(np.argmin(neighbours_classes[:, 0]))
+    # print(np.argmin(neighbours_classes[:, 0]))
     return np.min(neighbours_classes[:, 0]) # return neighbour that looks least like a face
 
 
